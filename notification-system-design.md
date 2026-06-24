@@ -528,3 +528,137 @@ Use read replicas for heavy read traffic.
 ## Conclusion
 
 The query is logically correct but may become slow at scale. A composite index on `(studentID, isRead, createdAt)` significantly improves performance. Indexing every column is not a good strategy due to storage and maintenance costs. Proper indexing, caching, partitioning, and pagination provide a scalable solution.
+
+# Stage 4 - Performance Optimization
+
+## Problem
+
+Notifications are fetched from the database on every page load for every student. As the number of users increases, the database receives a large number of repeated read requests, causing high latency and poor user experience.
+
+---
+
+## Proposed Solutions
+
+### 1. Redis Caching
+
+Store frequently accessed notifications in Redis.
+
+#### Workflow
+
+1. Application checks Redis cache.
+2. If data exists, return cached notifications.
+3. If data does not exist, fetch from database and store in cache.
+
+#### Advantages
+
+- Very fast response times.
+- Reduces database load.
+- Improves user experience.
+
+#### Trade-Offs
+
+- Additional infrastructure required.
+- Cache invalidation must be handled carefully.
+
+---
+
+### 2. Pagination
+
+Instead of fetching all notifications, return a limited number.
+
+#### Example
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = 1042
+ORDER BY createdAt DESC
+LIMIT 20 OFFSET 0;
+```
+
+#### Advantages
+
+- Reduces query execution time.
+- Reduces network traffic.
+
+#### Trade-Offs
+
+- Additional API logic required.
+- Users must load additional pages.
+
+---
+
+### 3. Real-Time Push Notifications
+
+Use WebSockets instead of repeatedly polling the server.
+
+#### Workflow
+
+1. User establishes WebSocket connection.
+2. Server pushes new notifications instantly.
+3. Client updates UI without page refresh.
+
+#### Advantages
+
+- Real-time user experience.
+- Reduces repeated database queries.
+
+#### Trade-Offs
+
+- More complex implementation.
+- Requires connection management.
+
+---
+
+### 4. Read Replicas
+
+Use database replicas for read operations.
+
+#### Advantages
+
+- Distributes read traffic.
+- Improves scalability.
+
+#### Trade-Offs
+
+- Additional infrastructure cost.
+- Replication lag may occur.
+
+---
+
+### 5. Notification Count API
+
+Instead of loading all notifications on page load, fetch only unread count.
+
+#### Example Response
+
+```json
+{
+  "unreadCount": 5
+}
+```
+
+#### Advantages
+
+- Minimal database usage.
+- Faster page loading.
+
+#### Trade-Offs
+
+- Full notifications require another API call.
+
+---
+
+## Recommended Architecture
+
+1. PostgreSQL as primary database.
+2. Redis for caching.
+3. WebSocket for real-time delivery.
+4. Pagination for notification listing.
+5. Read replicas for heavy read traffic.
+
+---
+
+## Conclusion
+
+The best approach is to combine Redis caching, WebSocket-based real-time updates, pagination, and read replicas. This significantly reduces database load, improves scalability, and provides a better user experience even with millions of notifications and thousands of concurrent users.
