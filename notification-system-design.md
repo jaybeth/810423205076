@@ -662,3 +662,174 @@ Instead of loading all notifications on page load, fetch only unread count.
 ## Conclusion
 
 The best approach is to combine Redis caching, WebSocket-based real-time updates, pagination, and read replicas. This significantly reduces database load, improves scalability, and provides a better user experience even with millions of notifications and thousands of concurrent users.
+
+
+# Stage 5 - Reliable Notification Delivery
+
+## Problems With Current Implementation
+
+Current pseudocode:
+
+```python
+function notify_all(student_ids, message):
+    for student_id in student_ids:
+        send_email(student_id, message)
+        save_to_db(student_id, message)
+        push_to_app(student_id, message)
+```
+
+### Issues
+
+1. Sequential processing is very slow for 50,000 students.
+2. Email API failures stop the flow.
+3. No retry mechanism.
+4. No fault tolerance.
+5. High response time.
+6. Difficult to scale.
+7. Partial failures may create inconsistent data.
+
+---
+
+## Example Failure Scenario
+
+Suppose email delivery fails for 200 students.
+
+Questions:
+
+- Were notifications saved to DB?
+- Did users receive in-app notifications?
+- Which 200 students failed?
+
+The current implementation does not provide reliable recovery.
+
+---
+
+## Recommended Solution
+
+Use an asynchronous event-driven architecture.
+
+### Components
+
+1. API Service
+2. PostgreSQL Database
+3. Message Queue (Kafka/RabbitMQ)
+4. Email Worker
+5. Notification Worker
+6. WebSocket Service
+
+---
+
+## Improved Workflow
+
+### Step 1
+
+Store notification request in database.
+
+### Step 2
+
+Publish event to queue.
+
+### Step 3
+
+Workers process notifications independently.
+
+### Step 4
+
+Failed messages are retried automatically.
+
+### Step 5
+
+Dead Letter Queue stores permanently failed messages.
+
+---
+
+## Revised Pseudocode
+
+```python
+function notify_all(student_ids, message):
+
+    notification_id = save_notification(message)
+
+    for student_id in student_ids:
+
+        publish_to_queue(
+            notification_id,
+            student_id,
+            message
+        )
+
+    return "Notification request accepted"
+```
+
+### Email Worker
+
+```python
+function email_worker():
+
+    while queue_not_empty():
+
+        task = consume()
+
+        try:
+            send_email(task.student_id, task.message)
+            mark_email_success(task.id)
+
+        except:
+            retry(task)
+```
+
+### App Notification Worker
+
+```python
+function notification_worker():
+
+    while queue_not_empty():
+
+        task = consume()
+
+        save_to_db(task.student_id, task.message)
+
+        push_to_app(task.student_id, task.message)
+```
+
+---
+
+## Should Email And DB Save Happen Together?
+
+No.
+
+They should be separated.
+
+### Reasons
+
+1. Better scalability.
+2. Independent failure handling.
+3. Faster response time.
+4. Easier retries.
+5. Improved reliability.
+
+---
+
+## Retry Strategy
+
+1. Retry after 1 minute.
+2. Retry after 5 minutes.
+3. Retry after 15 minutes.
+4. Move to Dead Letter Queue after maximum retries.
+
+---
+
+## Advantages Of Proposed Design
+
+- High scalability
+- Fault tolerance
+- Faster processing
+- Reliable delivery
+- Easy monitoring
+- Supports millions of notifications
+
+---
+
+## Conclusion
+
+The original implementation is slow and unreliable for large-scale notification delivery. Using asynchronous processing, message queues, worker services, retries, and dead-letter queues ensures reliable and scalable notification delivery to all students.
