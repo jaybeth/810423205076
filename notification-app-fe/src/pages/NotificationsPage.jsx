@@ -84,3 +84,30 @@ export function NotificationsPage() {
     </Box>
   );
 }
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import AllNotifications from "./pages/AllNotifications";
+import PriorityNotifications from "./pages/PriorityNotifications";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <div style={{ padding: "20px" }}>
+        <h1>Notification Service</h1>
+
+        <nav>
+          <Link to="/">All Notifications</Link> |{" "}
+          <Link to="/priority">Priority Notifications</Link>
+        </nav>
+
+        <hr />
+
+        <Routes>
+          <Route path="/" element={<AllNotifications />} />
+          <Route path="/priority" element={<PriorityNotifications />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
+  );
+}
+
+export default App;
