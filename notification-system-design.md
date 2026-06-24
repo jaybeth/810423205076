@@ -382,3 +382,149 @@ Storage size increases continuously.
 ## Conclusion
 
 PostgreSQL provides a reliable and scalable solution for storing notifications. Proper indexing, caching, partitioning, and message queues ensure high performance even as notification volume and user traffic increase.
+
+
+# Stage 3 - Query Optimization
+
+## Is the Query Accurate?
+
+Given Query:
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = 1042
+AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+The query is functionally correct because it fetches all unread notifications for a specific student and sorts them by creation time.
+
+However, with 50,000 students and 5,000,000 notifications, the query may become slow.
+
+---
+
+## Why Is This Query Slow?
+
+1. Large table size (5 million records).
+2. Filtering on multiple columns.
+3. Sorting using ORDER BY createdAt.
+4. Possible full table scan if indexes are missing.
+5. Returning all columns using SELECT * increases I/O cost.
+
+---
+
+## Improvements
+
+### Optimized Query
+
+```sql
+SELECT id, title, message, createdAt
+FROM notifications
+WHERE studentID = 1042
+AND isRead = false
+ORDER BY createdAt DESC;
+```
+
+### Recommended Composite Index
+
+```sql
+CREATE INDEX idx_notifications_student_read_created
+ON notifications(studentID, isRead, createdAt);
+```
+
+This index allows the database to:
+
+- Quickly locate notifications for a student.
+- Filter unread notifications efficiently.
+- Avoid expensive sorting operations.
+
+---
+
+## Computational Cost
+
+### Without Index
+
+- Time Complexity: O(N)
+- Full table scan may occur.
+
+### With Composite Index
+
+- Time Complexity: O(log N)
+- Faster filtering and sorting.
+
+---
+
+## Should We Add Indexes On Every Column?
+
+No.
+
+Adding indexes on every column is not recommended.
+
+### Problems
+
+1. Increased storage usage.
+2. Slower INSERT, UPDATE, and DELETE operations.
+3. Index maintenance overhead.
+4. Many indexes may never be used.
+
+### Best Practice
+
+Create indexes only on:
+
+- Frequently searched columns.
+- JOIN columns.
+- ORDER BY columns.
+- High-cardinality columns.
+
+---
+
+## Query To Find Students Who Received Placement Notifications In Last 7 Days
+
+```sql
+SELECT DISTINCT studentID
+FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= NOW() - INTERVAL '7 DAY';
+```
+
+### PostgreSQL Version
+
+```sql
+SELECT DISTINCT studentID
+FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= CURRENT_TIMESTAMP - INTERVAL '7 days';
+```
+
+---
+
+## Additional Scalability Improvements
+
+1. Pagination
+
+```sql
+LIMIT 50 OFFSET 0;
+```
+
+2. Table Partitioning
+
+Partition notifications by month or year.
+
+3. Caching
+
+Use Redis for frequently accessed notifications.
+
+4. Archiving
+
+Move old notifications to archive tables.
+
+5. Read Replicas
+
+Use read replicas for heavy read traffic.
+
+---
+
+## Conclusion
+
+The query is logically correct but may become slow at scale. A composite index on `(studentID, isRead, createdAt)` significantly improves performance. Indexing every column is not a good strategy due to storage and maintenance costs. Proper indexing, caching, partitioning, and pagination provide a scalable solution.
